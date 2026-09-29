@@ -1,5 +1,12 @@
 const request = require("supertest");
 const app = require("../service");
+const { Role, DB } = require("../database/database.js");
+
+async function loginAdmin() {
+  const email = Math.random().toString(36).substring(2, 12) + "@admin.com";
+  await DB.addUser({ name: "pizza admin", email: email, password: "admin", roles: [{ role: Role.Admin }] });
+  return request(app).put("/api/auth").send({ email: email, password: "admin" });
+}
 
 test("get franchises", async () => {
   const getFranchisesRes = await request(app).get("/api/franchise?page=0&limit=10&name=*");
@@ -9,9 +16,7 @@ test("get franchises", async () => {
 });
 
 test("get franchises as admin", async () => {
-  const loginRes = await request(app)
-    .put("/api/auth")
-    .send({ email: "a@jwt.com", password: "admin" });
+  const loginRes = await loginAdmin();
   const getFranchisesRes = await request(app)
     .get("/api/franchise?page=0&limit=10&name=*")
     .set("Authorization", `Bearer ${loginRes.body.token}`);
@@ -40,9 +45,7 @@ test("create franchise as diner", async () => {
 });
 
 test("create franchise with unknown admin", async () => {
-  const loginRes = await request(app)
-    .put("/api/auth")
-    .send({ email: "a@jwt.com", password: "admin" });
+  const loginRes = await loginAdmin();
   const unknownEmail = Math.random().toString(36).substring(2, 12) + "@unknown.com";
   const createFranchiseRes = await request(app)
     .post("/api/franchise")
@@ -53,9 +56,7 @@ test("create franchise with unknown admin", async () => {
 });
 
 test("create and delete franchise", async () => {
-  const loginRes = await request(app)
-    .put("/api/auth")
-    .send({ email: "a@jwt.com", password: "admin" });
+  const loginRes = await loginAdmin();
   const registerRes = await request(app)
     .post("/api/auth")
     .send({ name: "pizza franchisee", email: Math.random().toString(36).substring(2, 12) + "@test.com", password: "a" });
@@ -84,9 +85,7 @@ test("get user franchises without auth", async () => {
 });
 
 test("get user franchises", async () => {
-  const loginRes = await request(app)
-    .put("/api/auth")
-    .send({ email: "a@jwt.com", password: "admin" });
+  const loginRes = await loginAdmin();
   const registerRes = await request(app)
     .post("/api/auth")
     .send({ name: "pizza franchisee", email: Math.random().toString(36).substring(2, 12) + "@test.com", password: "a" });
@@ -132,9 +131,7 @@ test("get other user franchises as diner", async () => {
 });
 
 test("create and delete store as franchisee", async () => {
-  const loginRes = await request(app)
-    .put("/api/auth")
-    .send({ email: "a@jwt.com", password: "admin" });
+  const loginRes = await loginAdmin();
   const registerRes = await request(app)
     .post("/api/auth")
     .send({ name: "pizza franchisee", email: Math.random().toString(36).substring(2, 12) + "@test.com", password: "a" });
@@ -158,13 +155,11 @@ test("create and delete store as franchisee", async () => {
 });
 
 test("create and delete store as other diner", async () => {
-  const loginRes = await request(app)
-    .put("/api/auth")
-    .send({ email: "a@jwt.com", password: "admin" });
+  const loginRes = await loginAdmin();
   const createFranchiseRes = await request(app)
     .post("/api/franchise")
     .set("Authorization", `Bearer ${loginRes.body.token}`)
-    .send({ name: Math.random().toString(36).substring(2, 12), admins: [{ email: "a@jwt.com" }] });
+    .send({ name: Math.random().toString(36).substring(2, 12), admins: [{ email: loginRes.body.user.email }] });
   const registerRes = await request(app)
     .post("/api/auth")
     .send({ name: "pizza diner", email: Math.random().toString(36).substring(2, 12) + "@test.com", password: "a" });

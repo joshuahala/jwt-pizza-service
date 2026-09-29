@@ -1,5 +1,17 @@
 const request = require("supertest");
 const app = require("../service");
+const { DB } = require("../database/database.js");
+
+beforeAll(async () => {
+  const menu = await DB.getMenu();
+  if (menu.length === 0) {
+    await DB.addMenuItem({ title: "Veggie", image: "pizza1.png", price: 0.0038, description: "A garden of delight" });
+    await DB.addMenuItem({ title: "Pepperoni", image: "pizza2.png", price: 0.0042, description: "Spicy treat" });
+    await DB.addMenuItem({ title: "Margarita", image: "pizza3.png", price: 0.0042, description: "Essential classic" });
+    await DB.addMenuItem({ title: "Crusty", image: "pizza4.png", price: 0.0028, description: "A dry mouthed favorite" });
+    await DB.addMenuItem({ title: "Charred Leopard", image: "pizza5.png", price: 0.0099, description: "For those with a darker side" });
+  }
+});
 
 test("hello", () => {
   expect(true).toBe(true);
