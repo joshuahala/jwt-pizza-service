@@ -1,5 +1,6 @@
 {
   "collectCoverage": true,
+  "collectCoverageFrom": ["src/**/*.js", "!src/tests/**"],
   "coverageThreshold": {
     "global": {
       "branches": 30,
