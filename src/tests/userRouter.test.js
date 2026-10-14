@@ -1,5 +1,17 @@
 const request = require("supertest");
 const app = require("../service");
+const { Role, DB } = require("../database/database.js");
+
+async function loginAdmin() {
+  const email = Math.random().toString(36).substring(2, 12) + "@admin.com";
+  await DB.addUser({
+    name: "pizza admin",
+    email: email,
+    password: "admin",
+    roles: [{ role: Role.Admin }],
+  });
+  return request(app).put("/api/auth").send({ email: email, password: "admin" });
+}
 
 test("get me without auth", async () => {
   const getMeRes = await request(app).get("/api/user/me");
@@ -35,7 +47,11 @@ test("update user without auth", async () => {
 test("update user", async () => {
   const registerRes = await request(app)
     .post("/api/auth")
-    .send({ name: "pizza diner", email: Math.random().toString(36).substring(2, 12) + "@test.com", password: "a" });
+    .send({
+      name: "pizza diner",
+      email: Math.random().toString(36).substring(2, 12) + "@test.com",
+      password: "a",
+    });
   const newEmail = Math.random().toString(36).substring(2, 12) + "@test.com";
   const updateUserRes = await request(app)
     .put(`/api/user/${registerRes.body.user.id}`)
@@ -53,7 +69,11 @@ test("update user", async () => {
 test("update other user as diner", async () => {
   const registerRes = await request(app)
     .post("/api/auth")
-    .send({ name: "pizza diner", email: Math.random().toString(36).substring(2, 12) + "@test.com", password: "a" });
+    .send({
+      name: "pizza diner",
+      email: Math.random().toString(36).substring(2, 12) + "@test.com",
+      password: "a",
+    });
   const updateUserRes = await request(app)
     .put(`/api/user/${registerRes.body.user.id + 1000000}`)
     .set("Authorization", `Bearer ${registerRes.body.token}`)
@@ -63,23 +83,60 @@ test("update other user as diner", async () => {
 });
 
 test("delete user", async () => {
-  const registerRes = await request(app)
-    .post("/api/auth")
-    .send({ name: "pizza diner", email: Math.random().toString(36).substring(2, 12) + "@test.com", password: "a" });
+  const [user] = await registerUser(request(app));
+  const adminRes = await loginAdmin();
   const deleteUserRes = await request(app)
-    .delete(`/api/user/${registerRes.body.user.id}`)
-    .set("Authorization", `Bearer ${registerRes.body.token}`);
+    .delete(`/api/user/${user.id}`)
+    .set("Authorization", `Bearer ${adminRes.body.token}`);
   expect(deleteUserRes.status).toBe(200);
-  expect(deleteUserRes.body).toMatchObject({ message: "not implemented" });
+  expect(deleteUserRes.body).toMatchObject({ message: "user deleted" });
+
+  const loginRes = await request(app)
+    .put("/api/auth")
+    .send({ email: user.email, password: user.password });
+  expect(loginRes.status).toBe(404);
+});
+
+test("list users unauthorized", async () => {
+  const listUsersRes = await request(app).get("/api/user");
+  expect(listUsersRes.status).toBe(401);
 });
 
 test("list users", async () => {
-  const registerRes = await request(app)
-    .post("/api/auth")
-    .send({ name: "pizza diner", email: Math.random().toString(36).substring(2, 12) + "@test.com", password: "a" });
+  const uniqueName = `diner-${randomName()}`;
+  const testUser = {
+    name: uniqueName,
+    email: `${randomName()}@test.com`,
+    password: "a",
+  };
+  const registerRes = await request(app).post("/api/auth").send(testUser);
   const listUsersRes = await request(app)
-    .get("/api/user")
-    .set("Authorization", `Bearer ${registerRes.body.token}`);
+    .get(`/api/user?page=0&limit=10&name=*${uniqueName}*`)
+    .set("Authorization", "Bearer " + registerRes.body.token);
   expect(listUsersRes.status).toBe(200);
-  expect(listUsersRes.body).toMatchObject({ message: "not implemented", users: [], more: false });
+  expect(listUsersRes.body.users).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        name: uniqueName,
+        email: testUser.email,
+      }),
+    ]),
+  );
+  expect(typeof listUsersRes.body.more).toBe("boolean");
 });
+
+async function registerUser(service) {
+  const testUser = {
+    name: "pizza diner",
+    email: `${randomName()}@test.com`,
+    password: "a",
+  };
+  const registerRes = await service.post("/api/auth").send(testUser);
+  registerRes.body.user.password = testUser.password;
+
+  return [registerRes.body.user, registerRes.body.token];
+}
+
+function randomName() {
+  return Math.random().toString(36).substring(2, 12);
+}
